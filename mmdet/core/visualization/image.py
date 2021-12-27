@@ -39,6 +39,8 @@ def imshow_det_bboxes(img,
                       font_size=13,
                       win_name='',
                       show=True,
+                      # modified by not-raining
+                      show_label=True,
                       wait_time=0,
                       out_file=None):
     """Draw bboxes and class labels (with scores) on an image.
@@ -105,9 +107,9 @@ def imshow_det_bboxes(img,
         else:
             # specify  color
             mask_colors = [
-                np.array(mmcv.color_val(mask_color)[::-1], dtype=np.uint8)
-            ] * (
-                max(labels) + 1)
+                              np.array(mmcv.color_val(mask_color)[::-1], dtype=np.uint8)
+                          ] * (
+                                  max(labels) + 1)
 
     bbox_color = color_val_matplotlib(bbox_color)
     text_color = color_val_matplotlib(text_color)
@@ -138,24 +140,27 @@ def imshow_det_bboxes(img,
         np_poly = np.array(poly).reshape((4, 2))
         polygons.append(Polygon(np_poly))
         color.append(bbox_color)
-        label_text = class_names[
-            label] if class_names is not None else f'class {label}'
-        if len(bbox) > 4:
-            label_text += f'|{bbox[-1]:.02f}'
-        ax.text(
-            bbox_int[0],
-            bbox_int[1],
-            f'{label_text}',
-            bbox={
-                'facecolor': 'black',
-                'alpha': 0.8,
-                'pad': 0.7,
-                'edgecolor': 'none'
-            },
-            color=text_color,
-            fontsize=font_size,
-            verticalalignment='top',
-            horizontalalignment='left')
+        # modified by not-raining
+        if show_label:
+            label_text = class_names[
+                label] if class_names is not None else f'class {label}'
+            if len(bbox) > 4:
+                # label_text += f'|{bbox[-1]:.02f}'
+                label_text = f'{bbox[-1]:.02f}'
+            ax.text(
+                bbox_int[2],
+                bbox_int[1],
+                f'{label_text}',
+                bbox={
+                    'facecolor': 'white',
+                    'alpha': 0.8,
+                    'pad': 0.7,
+                    'edgecolor': 'none'
+                },
+                color=text_color,
+                fontsize=font_size,
+                verticalalignment='top',
+                horizontalalignment='left')
         if segms is not None:
             color_mask = mask_colors[labels[i]]
             mask = segms[i].astype(bool)
@@ -268,7 +273,9 @@ def imshow_gt_det_bboxes(img,
         thickness=thickness,
         font_size=font_size,
         win_name=win_name,
-        show=False)
+        show=False,
+        # single class, modified by not-raining
+        show_label=False)
 
     if isinstance(result, tuple):
         bbox_result, segm_result = result

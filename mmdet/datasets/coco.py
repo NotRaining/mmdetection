@@ -44,7 +44,17 @@ class CocoDataset(CustomDataset):
         Returns:
             list[dict]: Annotation info from COCO api.
         """
-
+        '''
+        pycocotools/coco.py/class COCO:
+            loadImgs(method)-->imgs(dict): img_id->img
+            loadAnns(method)-->anns(dict): ann_id->ann
+            loadCats(method)-->cats(dict): cat_id->cat
+            imgToAnns(dict)<=>img_ann_map: img_id->list[ann_id]
+            catToImgs(dict)<=>cat_img_map: cat_id->list[img_id]
+            getImgIds(method)<=>get_img_ids: Get img ids that satisfy given filter conditions.
+            getAnnIds(method)<=>get_ann_ids: Get ann ids that satisfy given filter conditions.
+            getCatIds(method)<=>get_cat_ids: Get cat ids that satisfy given filter conditions.
+        '''
         self.coco = COCO(ann_file)
         # The order of returned `cat_ids` will not
         # change with the order of the CLASSES
@@ -505,6 +515,40 @@ class CocoDataset(CustomDataset):
                 cocoEval.evaluate()
                 cocoEval.accumulate()
                 cocoEval.summarize()
+                # added for counting tps and fps. By not-raining.
+                tps = cocoEval.eval['TP'][0, :, 0, 2]  # T,K,A,M
+                fps = cocoEval.eval['FP'][0, :, 0, 2]
+                gts = cocoEval.eval['GT'][0, :, 0, 2]
+                info = dict(tps=tps, fps=fps, gts=gts)
+                cats = cocoGt.cats
+                for value in info.values():
+                    assert value.shape[0] == len(cats)  # k categories
+                for tp, fp, gt, cat in zip(*info.values(), cats.values()):  # per category
+                    cat = cat['name']
+                    pd = tp / gt * 100
+                    pm = 100 - pd
+                    pf = fp / (tp + fp) * 100
+                    f_string = ' {}: tp={} fn={} fp={} gt={} pd={:.2f}% pm={:.2f}% pf={:.2f}%'
+                    print(f_string.format(cat, int(tp), int(gt - tp), int(fp), int(gt), pd, pm, pf))
+                # added for plotting pr curve. By not-raining.
+                pr = cocoEval.eval['precision'][0, :, :, 0, 2]  # T,R,K,A,M
+                pr = np.mean(pr, axis=1)
+                pr = pr[pr != 0]
+                import matplotlib.pyplot as plt
+                plt.plot(pr, linewidth=2, color='#6195C8')
+                ax = plt.gca()
+                ax.set_title('PR curve', fontsize=12)
+                ax.set_xlim(0, 100)
+                # TODO: numpy data overflow 0.600...01
+                # ticks = [round(tick, 1) for tick in np.linspace(0, 1, 6)]
+                ax.set_xticklabels(range(0, 120, 20))
+                ax.set_xlabel('Recall(%)', fontsize=12)
+                ax.set_ylim(0)
+                ax.set_yticklabels(range(0, 120, 20))
+                ax.set_ylabel('Precision(%)', fontsize=12)
+                # ax.savefig('results/pr_curve.png')
+                plt.show()
+
                 if classwise:  # Compute per-category AP
                     # Compute per-category AP
                     # from https://github.com/facebookresearch/detectron2/

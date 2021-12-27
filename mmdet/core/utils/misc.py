@@ -25,8 +25,11 @@ def multi_apply(func, *args, **kwargs):
         tuple(list): A tuple containing multiple list, each list contains \
             a kind of returned results by the function
     """
-    pfunc = partial(func, **kwargs) if kwargs else func
-    map_results = map(pfunc, *args)
+    pfunc = partial(func, **kwargs) if kwargs else func  # fix kwargs
+    map_results = map(pfunc, *args)  # Iterable[Tuple], Tuple: each result of func
+    # zip(*map_results): Iterable[Tuple]
+    # map(list, zip(*map_results)): Iterable[List]
+    # tuple(map(list, zip(*map_results))): Tuple[List]
     return tuple(map(list, zip(*map_results)))
 
 

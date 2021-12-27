@@ -2,27 +2,28 @@ _base_ = [
     '../_base_/datasets/coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
 ]
+
 # model settings
 model = dict(
     type='FCOS',
     backbone=dict(
         type='ResNet',
         depth=50,
-        num_stages=4,
-        out_indices=(0, 1, 2, 3),
+        num_stages=4,  # number of res_layers
+        out_indices=(0, 1, 2, 3),  # backbone feature indices(C2~C5)
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=False),
+        norm_cfg=dict(type='BN', requires_grad=False),  # 'Caffe style': requires_grad=False
         norm_eval=True,
-        style='caffe',
+        style='caffe',  # in a bottleneck block, conv1_stride=stride if style='caffe' else 1
         init_cfg=dict(
             type='Pretrained',
             checkpoint='open-mmlab://detectron/resnet50_caffe')),
     neck=dict(
-        type='FPN',
-        in_channels=[256, 512, 1024, 2048],
+        type='FPN',  # conv with bias and without norm
+        in_channels=[256, 512, 1024, 2048],  # channels of backbone features
         out_channels=256,
         start_level=1,
-        add_extra_convs='on_output',  # use P5
+        add_extra_convs='on_output',  # use P5(stride=2^5) to generate P6 and P7, referring to the thesis FCOS
         num_outs=5,
         relu_before_extra_convs=True),
     bbox_head=dict(
@@ -42,6 +43,7 @@ model = dict(
         loss_centerness=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
     # training and testing settings
+    # FCOS doesn't use train_cfg, since it has its own assigner.
     train_cfg=dict(
         assigner=dict(
             type='MaxIoUAssigner',
@@ -58,16 +60,17 @@ model = dict(
         score_thr=0.05,
         nms=dict(type='nms', iou_threshold=0.5),
         max_per_img=100))
+
 img_norm_cfg = dict(
-    mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)
+    mean=[102.9801, 115.9465, 122.7717], std=[1.0, 1.0, 1.0], to_rgb=False)  # 'Caffe style': BGR, std=1, to_rgb=False
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations'),
     dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
-    dict(type='Pad', size_divisor=32),
-    dict(type='DefaultFormatBundle'),
+    dict(type='Pad', size_divisor=32),  # Pad is also used on collate stage in dataloader when sizes are not consistent.
+    dict(type='DefaultFormatBundle'),  # (H,W,C)-->(C,H,W)
     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
 ]
 test_pipeline = [
@@ -81,7 +84,7 @@ test_pipeline = [
             dict(type='RandomFlip'),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32),
-            dict(type='ImageToTensor', keys=['img']),
+            dict(type='ImageToTensor', keys=['img']),  # (H,W,C)-->(C,H,W)
             dict(type='Collect', keys=['img']),
         ])
 ]
@@ -91,6 +94,7 @@ data = dict(
     train=dict(pipeline=train_pipeline),
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))
+
 # optimizer
 optimizer = dict(
     lr=0.01, paramwise_cfg=dict(bias_lr_mult=2., bias_decay_mult=0.))
@@ -104,3 +108,10 @@ lr_config = dict(
     warmup_ratio=1.0 / 3,
     step=[8, 11])
 runner = dict(type='EpochBasedRunner', max_epochs=12)
+
+log_config = dict(
+    interval=50,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        dict(type='TensorboardLoggerHook')
+    ])
