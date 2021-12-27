@@ -1,0 +1,2 @@
+编译mmdet：pip install -v -e .
+如果在pycharm中更改了mmdet目录下的文件，要想在终端运行，必须重新编译mmdet：python setup.py develop

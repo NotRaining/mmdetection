@@ -129,7 +129,7 @@ class Transpose:
 
     def __repr__(self):
         return self.__class__.__name__ + \
-            f'(keys={self.keys}, order={self.order})'
+               f'(keys={self.keys}, order={self.order})'
 
 
 @PIPELINES.register_module()
@@ -292,9 +292,14 @@ class Collect:
                  keys,
                  meta_keys=('filename', 'ori_filename', 'ori_shape',
                             'img_shape', 'pad_shape', 'scale_factor', 'flip',
-                            'flip_direction', 'img_norm_cfg')):
+                            'flip_direction', 'img_norm_cfg'),
+                 # added for showing gt. By not-raining
+                 additional_keys=('ori_gt_bboxes', 'ori_gt_labels')):
+
         self.keys = keys
         self.meta_keys = meta_keys
+        # added for showing gt. By not-raining
+        self.additional_keys = additional_keys
 
     def __call__(self, results):
         """Call function to collect keys in results. The keys in ``meta_keys``
@@ -314,6 +319,10 @@ class Collect:
         img_meta = {}
         for key in self.meta_keys:
             img_meta[key] = results[key]
+        # added for showing gt. By not-raining.
+        for key in self.additional_keys:
+            img_meta[key] = results.pop(key, None)
+
         data['img_metas'] = DC(img_meta, cpu_only=True)
         for key in self.keys:
             data[key] = results[key]
@@ -321,7 +330,7 @@ class Collect:
 
     def __repr__(self):
         return self.__class__.__name__ + \
-            f'(keys={self.keys}, meta_keys={self.meta_keys})'
+               f'(keys={self.keys}, meta_keys={self.meta_keys})'
 
 
 @PIPELINES.register_module()

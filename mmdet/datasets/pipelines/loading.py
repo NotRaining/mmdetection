@@ -245,6 +245,8 @@ class LoadAnnotations:
 
         ann_info = results['ann_info']
         results['gt_bboxes'] = ann_info['bboxes'].copy()
+        # for showing gt, modified by not-raining
+        results['ori_gt_bboxes'] = ann_info['bboxes'].copy()
 
         gt_bboxes_ignore = ann_info.get('bboxes_ignore', None)
         if gt_bboxes_ignore is not None:
@@ -264,6 +266,8 @@ class LoadAnnotations:
         """
 
         results['gt_labels'] = results['ann_info']['labels'].copy()
+        # for showing gt, modified by not-raining
+        results['ori_gt_labels'] = results['ann_info']['labels'].copy()
         return results
 
     def _poly2mask(self, mask_ann, img_h, img_w):

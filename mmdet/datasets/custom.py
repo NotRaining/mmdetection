@@ -62,6 +62,8 @@ class CustomDataset(Dataset):
                  img_prefix='',
                  seg_prefix=None,
                  proposal_file=None,
+                 # modified for not loading annotations during validation
+                 val_mode=False,
                  test_mode=False,
                  filter_empty_gt=True):
         self.ann_file = ann_file
@@ -69,6 +71,8 @@ class CustomDataset(Dataset):
         self.img_prefix = img_prefix
         self.seg_prefix = seg_prefix
         self.proposal_file = proposal_file
+        # modified for not loading annotations during validation
+        self.val_mode = val_mode
         self.test_mode = test_mode
         self.filter_empty_gt = filter_empty_gt
         self.CLASSES = self.get_classes(classes)
@@ -191,12 +195,46 @@ class CustomDataset(Dataset):
 
         if self.test_mode:
             return self.prepare_test_img(idx)
+        # modified for not loading annotations during validation
+        if self.val_mode:
+            return self.prepare_val_img(idx)
         while True:
             data = self.prepare_train_img(idx)
             if data is None:
                 idx = self._rand_another(idx)
                 continue
             return data
+
+    # TODO: draw gt_bboxes code for CocoDataset by not-raining
+    def draw_gt_bboxes(self, color=(0, 255, 0), thickness=1):
+        import time
+        import os
+        import cv2
+
+        timestamp = time.time()
+        print('drawing gt bboxes...')
+        for i in range(len(self.data_infos)):
+            img_info = self.data_infos[i]
+            img_path = self.img_prefix + img_info['filename']
+            img = cv2.imread(img_path)
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+            ann_info = self.get_ann_info(i)
+            gt_bboxes = ann_info['bboxes'].tolist()  # xyxy
+
+            for gt_bbox in gt_bboxes:
+                gt_bbox = [int(coord) for coord in gt_bbox]  # error occurs in cv2 if coords are float
+                pt1 = (gt_bbox[0], gt_bbox[1])
+                pt2 = (gt_bbox[2], gt_bbox[3])
+                img = cv2.rectangle(img, pt1, pt2, color=color, thickness=thickness)
+
+            save_dir = self.img_prefix[:-1] + '_with_gt/'
+            os.makedirs(save_dir, exist_ok=True)
+            save_path = save_dir + img_info['filename']
+            cv2.imwrite(save_path, img)
+
+        t = time.time() - timestamp
+        print('Done (t=%.2fs)' % t)
 
     def prepare_train_img(self, idx):
         """Get training data and annotations after pipeline.
@@ -217,6 +255,15 @@ class CustomDataset(Dataset):
         self.pre_pipeline(results)
         return self.pipeline(results)
 
+    def prepare_val_img(self, idx):
+
+        img_info = self.data_infos[idx]
+        results = dict(img_info=img_info)
+        if self.proposals is not None:
+            results['proposals'] = self.proposals[idx]
+        self.pre_pipeline(results)
+        return self.pipeline(results)
+
     def prepare_test_img(self, idx):
         """Get testing data  after pipeline.
 
@@ -229,7 +276,10 @@ class CustomDataset(Dataset):
         """
 
         img_info = self.data_infos[idx]
-        results = dict(img_info=img_info)
+        # results = dict(img_info=img_info)
+        # modified for showing gt
+        ann_info = self.get_ann_info(idx)
+        results = dict(img_info=img_info, ann_info=ann_info)
         if self.proposals is not None:
             results['proposals'] = self.proposals[idx]
         self.pre_pipeline(results)

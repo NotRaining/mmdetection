@@ -8,7 +8,7 @@ import torch
 import torch.distributed as dist
 from mmcv.runner import BaseModule, auto_fp16
 
-from mmdet.core.visualization import imshow_det_bboxes
+from mmdet.core.visualization import imshow_det_bboxes, imshow_gt_det_bboxes
 
 
 class BaseDetector(BaseModule, metaclass=ABCMeta):
@@ -153,7 +153,7 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             assert 'proposals' not in kwargs
             return self.aug_test(imgs, img_metas, **kwargs)
 
-    @auto_fp16(apply_to=('img', ))
+    @auto_fp16(apply_to=('img',))
     def forward(self, img, img_metas, return_loss=True, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.
@@ -266,7 +266,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                     text_color=(72, 101, 241),
                     mask_color=None,
                     thickness=2,
-                    font_size=13,
+                    # font_size=13,
+                    font_size=8,
                     win_name='',
                     show=False,
                     wait_time=0,
@@ -335,6 +336,67 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             bbox_color=bbox_color,
             text_color=text_color,
             mask_color=mask_color,
+            thickness=thickness,
+            font_size=font_size,
+            win_name=win_name,
+            show=show,
+            wait_time=wait_time,
+            out_file=out_file)
+
+        if not (show or out_file):
+            return img
+
+    # added for showing gt. By not-raining.
+    def show_result_with_gt(self,
+                            img,
+                            annotation,
+                            result,
+                            score_thr=0.3,
+                            gt_bbox_color='green',
+                            gt_text_color='green',
+                            gt_mask_color=None,
+                            thickness=2,
+                            font_size=8,
+                            win_name='',
+                            show=False,
+                            wait_time=0,
+                            out_file=None):
+
+        img = mmcv.imread(img)
+        img = img.copy()
+        if isinstance(result, tuple):
+            bbox_result, segm_result = result
+            if isinstance(segm_result, tuple):
+                segm_result = segm_result[0]  # ms rcnn
+        else:
+            bbox_result, segm_result = result, None
+        bboxes = np.vstack(bbox_result)
+        labels = [
+            np.full(bbox.shape[0], i, dtype=np.int32)
+            for i, bbox in enumerate(bbox_result)
+        ]
+        labels = np.concatenate(labels)
+        # draw segmentation masks
+        segms = None
+        if segm_result is not None and len(labels) > 0:  # non empty
+            segms = mmcv.concat_list(segm_result)
+            if isinstance(segms[0], torch.Tensor):
+                segms = torch.stack(segms, dim=0).detach().cpu().numpy()
+            else:
+                segms = np.stack(segms, axis=0)
+        # if out_file specified, do not show image in window
+        if out_file is not None:
+            show = False
+        # draw bounding boxes
+        img = imshow_gt_det_bboxes(
+            img,
+            annotation=annotation,
+            result=result,
+            class_names=self.CLASSES,
+            score_thr=score_thr,
+            gt_bbox_color=gt_bbox_color,
+            gt_text_color=gt_text_color,
+            gt_mask_color=gt_mask_color,
             thickness=thickness,
             font_size=font_size,
             win_name=win_name,
